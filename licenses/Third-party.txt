@@ -1,0 +1,26 @@
+mp3encode~ dynamically links LAME 3.100, built from the bundled upstream
+source. source/vendor/lame-frame-bitrate.patch adds a between-frame bitrate
+setter for the reservoir-disabled encoder. source/build-lame-macos.sh builds
+the replaceable universal dylib. source/build-macos.sh embeds and signs it.
+The original archive and the modified API header are in source/vendor.
+See LAME-LGPL.txt for the LGPL license.
+Project: https://lame.sourceforge.io/
+Release archive SHA-256:
+ddfe36cab873794038ae2c1210557ad34857a4b6bdc515785d1da9e175b1da1e
+
+minimp3 by lieff and contributors is distributed under CC0. The original
+dedication and warranty notice are included in source/vendor/minimp3.h.
+The local 8 kHz mixed-block table uses six long scalefactor bands followed
+by the final ten short-window groups. Its first Huffman region spans 72 lines and its
+synthesis uses two long subbands.
+Project: https://github.com/lieff/minimp3
+Included header SHA-256:
+f9592be69e8b94044e9da6f45f993c9708000abae38cf6f44b70c699de55b509
+
+The packer uses the Huffman code and length tables from LAME 3.100
+libmp3lame/tables.c. source/vendor/pack_huffman.h retains their license
+notice. The full upstream source, local source and build script are included.
+source/vendor/pack_layout.h contains band widths and partitions from minimp3.
+
+Cycling '74 provides the Max SDK used for the external interface.
+https://github.com/Cycling74/max-sdk-base

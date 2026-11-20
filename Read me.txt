@@ -1,0 +1,476 @@
+MP3 Patch for Max
+
+Open mp3unpack~.maxhelp to edit an existing MP3. Turn on DSP, read an MP3,
+click write to choose the output, then start. Change Recording bitrate during the take. The help patch lets you mute
+the lowest subband on both sides and freeze the third subband while the
+rest of the file plays. The recorder closes when the source finishes.
+
+Open mp3frames~.maxhelp for the playable instrument. Turn on audio and let the
+frame memory fill. Click record 0 to park it, then choose a different frame
+age for each band. Select holdmode level to keep a band's captured spectral
+level as you switch source gain. Click write to start a file. The Listen to
+menu switches between the live fields and playback of the actual recording.
+Stop finishes the take. mp3short~.maxhelp demonstrates the three short-window
+trims. mp3clock~.maxhelp shows the row counter and timing pulses.
+
+Open mp3pack~.maxhelp to record an MP3 directly from oscillators or from
+edited mp3encode~ bands. Turn on audio, click write, play or freeze the fields,
+then click stop. Open Band_holds to switch individual bands. Each example has its own recorder and monitor decoder.
+Spectral freeze.mp3 demonstrates a whole-frame hold. Individual band holds.mp3
+uses separate gates on four stereo lanes.
+Packing and freeze tests.txt gives the verification results.
+
+Open mp3encode~.maxhelp for the encoder/decoder pair. Its Codec divisor control
+changes all three objects together. Click the speaker, then
+change Spectral source to Oscillator bank. The oscillators now supply all the
+spectral integers while the encoder continues to supply its gain, attenuation
+and window choices. The audition menu also lets you hear the original bytes.
+
+Open mp3decode~.maxhelp to play the synthesis stage directly. It starts with a
+single active subband. Try the repeating subband mask and switch to Short.
+Spectral substitution.wav is a short capture of the pair example’s left channel.
+
+Keep the .mxo bundles beside the help patches or add this folder to Max’s
+search path. The seven objects are universal macOS externals for Intel and Apple
+silicon. The bundled libraries are sufficient to run the compiled objects.
+
+Connections
+
+[mp3encode~] accepts mono audio or a stereo MC cable. On a wider cable it uses
+the first two channels. It encodes real Layer III frames with LAME, unpacks the
+frames, and sends these eight signals from left to right. Connect the first five
+to the matching inlets of [mp3decode~].
+
+1. Quantized spectral integers. One audio channel occupies 32 MC lanes. Stereo
+   uses lanes 1–32 for left and 33–64 for right. Each lane carries 18 successive
+   values per granule. A value is held for 32 codec samples. The integers run
+   from −8206 to +8206. On the decoder, incoming values round to the nearest
+   integer. Scale a typical ±1 oscillator to explore more than three levels.
+
+2. Effective attenuation. The same lane and time layout as the integers. These
+   values combine the encoded scalefactors, pre-emphasis flags and short-window
+   gains after expansion to individual spectral lines. Adding 4 halves that
+   line’s amplitude. A mono attenuation cable can control all lines together.
+
+3. Global gain. One lane per audio channel, sampled at the start of a granule.
+   Values range from 0 to 255. Adding 4 doubles the reconstructed amplitude.
+
+4. Window type. One lane per audio channel, sampled at the start of a granule.
+   0 is long, 1 start, 2 short, 3 stop, 4 mixed with two long subbands, and 5
+   mixed with four subbands in long coding order (8 kHz). Both mixed layouts
+   use two long synthesis windows. Short-block data uses synthesis order:
+   the three short windows are interleaved within each subband. Driving window
+   type yourself allows abrupt transitions as an intentional sound-design tool.
+
+5. Granule sync. A one-sample positive pulse marks the first of the 18 values.
+   If an effect delays the spectral data, delay its timing and side information
+   by the same amount. With no sync cord the decoder runs its own clock.
+
+6. Original packed MP3 bytes. 0–255 are unsigned bytes, −1 means idle. Each
+   frame starts with its header. Connect this outlet to [mp3decode~ bytes] for
+   ordinary decoding. A binary capture can discard negative samples and write
+   the remaining values as bytes in order. This outlet always represents the
+   encoder input. For a file containing your edits, connect the five field
+   signals to [mp3pack~] and send write. The playback paths have different delays.
+   The byte decoder waits one native frame period after it receives the first
+   complete decodable frame. A single self-contained frame followed by −1 idle
+   plays through to its end.
+
+7. Spectral row, 0–17. Each row occupies 32 codec samples. For pure short
+   blocks, row modulo 3 identifies the first, second or third short window.
+
+8. Full-frame sync. This signal pulses on the first codec tick of each frame.
+   Each MPEG-1 frame contains two granules. MPEG-2/2.5 frames contain one.
+
+Synthesis and timing
+
+A standalone [mp3decode~] defaults to global gain 160, zero attenuation, and
+long windows. Its left inlet can take a mono oscillator broadcast over all
+bands, a partial MC bank, or a full 32-lane bank. Missing lanes in a partial
+bank contribute zero. Decoder output is one MC audio cable with one or two
+channels. In byte mode it always has two channels and duplicates mono to both.
+
+At 48 kHz a granule is 576 samples (12 ms) and each lane advances at 1,500
+values per second. At 44.1 kHz a granule lasts about 13.06 ms. The field
+decoder collects one complete granule before rendering it, and its filter
+overlap carries across granules. The live encoder also has psychoacoustic
+lookahead and queues complete frames before playback.
+
+Host rate and MP3 file rate
+
+The codec clocks follow the actual DSP rate of their patch, including inside an
+oversampled poly~. MP3 supports 8, 11.025, 12, 16, 22.05, 24, 32, 44.1 and
+48 kHz. At a native rate the clocks coincide. Otherwise the objects choose
+the highest native rate that divides the host rate exactly, or the highest
+native rate below the host. Below 8 kHz they use an 8 kHz codec clock. For
+example, 88.2 kHz maps to 44.1, 96/192 kHz map to 48, and 50 kHz maps to 48.
+A fractional clock preserves duration and pitch across DSP vectors.
+mp3encode~ and mp3decode~ resample audio as needed. mp3pack~ samples fields
+at codec ticks. Send info to mp3pack~ for host Hz, file Hz and channel count.
+
+The hybrid filter bank has 32 subbands per audio channel at every supported
+bitrate. Each carries 18 coefficient positions per granule. A patch may drive
+one lane or any subset. Stereo has two banks of 32. The stream bitrate is
+shared across both sides. The lowest supported indexed bitrate is 32 kb/s
+at 32, 44.1 and 48 kHz and 8 kb/s at 8, 11.025, 12, 16, 22.05 and 24 kHz.
+For 8 kb/s in a 48 kHz session, use [mp3encode~ 8 @downsample 2] and
+[mp3pack~ 8 @downsample 2]. For direct MC playback connect the encoder’s
+first five outlets to [mp3decode~ @downsample 2]. For a packed-byte listen,
+connect encoder outlet 6 to [mp3decode~ bytes]. Max audio stays at 48 kHz.
+
+Downsampling in a running patch
+
+Send downsample 2 to the left inlet for half rate. Send downsample 1 or
+downsample 0 to restore the normal codec rate. You can also put @downsample N
+after the positional arguments. The divisor applies to the usual native MP3
+rate selected above. Each step stays within the rate family and stops at
+the largest available integer divisor up to N. The maximum divisor is 6.
+
+Usual rate       /1          /2          /3          /4          /6
+48 kHz           48          24          16          12           8 kHz
+44.1 kHz         44.1        22.05       22.05       11.025      11.025 kHz
+32 kHz           32          16          16           8           8 kHz
+
+Send the same divisor to mp3encode~, mp3decode~ in field mode, mp3pack~,
+mp3clock~ and mp3frames~ when they share a live MC field bus. mp3short~
+follows its incoming row signal. A rate change starts fresh analysis,
+synthesis, holds and frame memory for the new band spacing. A repeated
+setting that selects the same effective rate keeps the current take and
+history. The band count stays at 32 per channel. At 24 kHz, those 32 bands
+cover 0–12 kHz and each MC row lasts twice as long as it does at 48 kHz.
+
+Set the divisor before write. Changing the file rate during recording
+finishes the current take. Send write again for a new file at the new rate.
+You can continue to change bitrate during a take at a fixed sample rate.
+getrate on the encoder, either decoder, reader or packer reports
+rate <Max Hz> <effective codec, playback or file Hz> <output channels>.
+getbitrate reports the separately selected bitrate on the encoder or packer.
+On the file reader, load a file first.
+
+The byte decoder follows each incoming MP3 header. A downsample setting on
+the byte decoder alone limits playback bandwidth. A stream already at or below
+the selected rate plays at its own rate. A higher-rate stream uses a legal
+divisor from its own rate family. For example, at a 48 kHz host, downsample 2
+plays 48 kHz bytes through a 24 kHz stage and plays 24 kHz bytes at 24 kHz.
+
+Byte mode accepts
+framed Layer III streams including joint stereo and the bit reservoir.
+Free-format streams fall outside the supported byte format. The byte cable
+transports at most one byte per host sample or codec sample, whichever is
+slower. This restricts the live encoder bitrate at very low host rates. A
+direct file recording from mp3pack~ is independent of the byte cable.
+
+Editing an existing MP3 with mp3unpack~
+
+Send read or read "path/to/file.mp3" to the left inlet. A successful read
+primes the file and reports sourceformat <Hz> <channels>, then ready <path>.
+With reader downsampling, sourceformat includes a third value, the original Hz.
+Pass the entire message to the packer.
+start plays from the beginning, including after end of file. stop stops the
+reader. info repeats sourceformat. To finish a take early, also stop the
+packer. A failed read reports error and keeps the previously loaded file.
+
+Connect the first five outlets to the first five inlets of mp3pack~. Insert
+MC processing on coefficients or attenuation. Route the sixth outlet through
+[route sourceformat done], rebuild the first message with [prepend sourceformat]
+and send it to the packer's left inlet. Connect the done outlet of route to a
+[stop] message for the packer. The help has these connections already. A read
+selects the source format before you send write. A format change finishes
+an open take. The source sends done <complete frames> <refill waits> once
+its last row has played. A damaged stream reports error at the last readable
+frame. Stop the packer if you want to keep those completed frames.
+
+The reader always provides a 64-lane coefficient bank and a 64-lane
+attenuation bank. Lanes 1–32 are left and 33–64 are right. Gain and window
+each have two lanes. Mono appears on both banks so patches stay connected
+when you change files. The sourceformat message selects mono for the saved
+file, using the first bank. At a different Max sample rate, the reader still
+uses the file rate by default and the packer writes that rate. For instance, a
+44,100 Hz source in a 48,000 Hz patch writes a 44,100 Hz MP3. In file mode
+the sync cable marks every row. 2 begins a frame, 1 begins the second MPEG-1
+granule, -2 through -18 mark subsequent rows in each granule, 0 is between
+rows, and -1 is idle. Pass it straight through with the other timing fields.
+The recorder waits through idle and writes whole frames. For a return to the
+free-running oscillator or mp3encode~ clock, send sourceformat auto to
+mp3pack~. Processing that delays the fields must delay the sync equally. The host must supply at least
+one sample per spectral row (source Hz divided by 32).
+
+To edit all of the original bands and write a lower-rate MP3, send
+downsample 2 to mp3pack~ before write. Its MC outlets still carry the fields
+you are editing. Its last outlet, with monitor 1, plays the saved audio.
+
+To edit the lower-rate bands themselves, send downsample 2 to mp3unpack~
+before start. The reader applies changes made during playback at the next
+start or read. When the packer receives the reader’s complete sourceformat
+message, both settings refer to the original file. Half rate on both produces
+one half-rate conversion. A 44.1 kHz file becomes 22.05 kHz, even in a 48 kHz
+patch. The conversion filters and regroups the MP3 subbands, keeps pitch and
+timing, and generates long-window fields at the target rate. The final frame
+can contain up to one granule of end padding. The file reader and packer do
+this work outside the audio callback. At 8 kb/s a 24 kHz stereo frame has
+just three payload bytes to share between its channels, so drastic changes
+in the sound are possible.
+
+For an individual hold, click a [holdmode level] message connected to the
+packer's left inlet. Patch [mc.sig~ 0 @chans 32] into inlet 6. Send
+setvalue 3 1 to that mc.sig~ to hold the third subband on both sides. Send
+setvalue 3 0 to release it to the moving file. A 64-lane mask gives separate
+left and right holds. holdmode coeff uses the live global gain. For a whole
+frame, send freeze 1 or freeze 0 to the packer itself.
+
+The unpacker reads bitrate-indexed Layer III CBR and VBR files at all nine
+MP3 rates. It follows the bit reservoir, handles CRC-bearing frames and skips
+leading ID3v2, trailing ID3v1/APE tags and the initial Xing/Info/VBRI metadata
+frame. A file must keep its sample rate and channel count. Free-format streams
+are unsupported. Whole coded frames include encoder delay and end padding.
+Tags, gapless trim, and the source VBR settings are omitted from the new take.
+The file reader preloads four frames and keeps a bounded 16-frame queue.
+File I/O and entropy decoding run outside the audio callback.
+
+For mono and independent stereo the reader recovers the original quantized
+integers, gain, window and expanded attenuation. For mid/side or intensity
+stereo it reconstructs left/right spectra and expresses them as new editable
+integer fields. This adds spectral rounding. mp3pack~ fits the result to its
+chosen bitrate and legal window transitions. The result can differ from the
+input even with all controls at unity. The file path stays in the spectral
+domain throughout. monitor 1 on the packer adds an optional PCM listening tap.
+
+Changing bitrate while the patch runs
+
+Connect a number box to [prepend bitrate], then to the object's left inlet.
+You can also click messages such as bitrate 32 and bitrate 192, or use the
+alias kbps. Rates are in kilobits per second for the complete stream. Changes
+take effect at whole-frame boundaries. Requests between table entries snap to
+the closest supported rate at the current codec rate. An exact tie goes to the
+lower bitrate. getbitrate reports the selected value from the status outlet.
+
+• mp3pack~ changes the budget for subsequent frames in the same take. It keeps
+  window history, frame timing, and held bands. bitrate 0 restores the automatic
+  packer maximum. The final field of the done message is the last written
+  kb/s. A take with multiple bitrates is a variable-bitrate MP3. Players that
+  estimate duration from just the first frame can show an inaccurate duration.
+• mp3encode~ changes its active LAME encoder's frame budget and low-pass
+  bandwidth while preserving its stream and filter history. The byte and field
+  outlets both reflect the change after normal encoder latency. bitrate 0
+  restores its automatic bitrate. The byte cable also limits the highest
+  selectable rate. The ninth outlet carries bitrate status.
+• Field-mode mp3decode~ can audition a bitrate without writing a file. Send
+  bitrate 32, then bitrate 192, to hear how the same MC fields fit those
+  budgets. It packs complete frames in memory and plays their actual decoded
+  audio. bitrate 0 returns to direct field synthesis, the initial mode. The
+  audition adds buffering and starts a worker only when enabled. The second
+  outlet reports the selected bitrate. [mp3decode~ bytes] follows received
+  frame headers. getbitrate reports the most recently received frame's kb/s.
+  Change the upstream encoder or packer when using a byte stream.
+
+Recording with mp3pack~
+
+Inlets 1 through 5 follow mp3decode~ exactly. They accept spectral integers,
+attenuation, global gain, window type and optional granule sync. Feed one
+32-lane bank for mono or two banks in a 64-lane cable for stereo. A partial
+bank supplies only its connected lanes. The five signal outlets carry the
+sampled live or frozen fields in the same order. The sixth outlet sends status. The seventh is the optional packed-frame audio monitor.
+
+• write opens the save dialog and starts a take. Alternatively, write followed
+  by a file path starts a take directly. In a Max message, put a path with
+  spaces inside double quotes. Selecting a new destination finishes the preceding
+  take. Audio must run long enough to capture at least one complete frame.
+• stop drains the writer, closes the file, and publishes the finished take.
+  A format change that selects another native rate or channel count also
+  finishes the current take. Capture starts and ends on whole frames. If a
+  take ends in a switched window, silent transitions complete its overlap
+  sequence. An empty take or a write failure leaves an existing target intact.
+• The default bitrate is 320 kb/s for MPEG-1, 160 for MPEG-2 and 64 for
+  MPEG-2.5. Specify a legal CBR bitrate as an argument, e.g. [mp3pack~ 128]
+  for a 44.1 or 48 kHz file. Use bitrate <number> to change it mid-take. Higher rates leave more room for dense spectra.
+
+The packer rounds values just as the field decoder does. Nonfinite values
+become zero. It clamps integer magnitudes at 8206, attenuation at 0–210,
+global gain at 0–255 and window selection at 0–5. It enforces long/start/
+short/stop transitions, chooses the legal mixed layout for the rate, and
+uses pure short windows for free-running mixed requests at 8 kHz. In file
+mode it preserves a source 8 kHz mixed window (code 5). A noisy sync cable
+cannot repeatedly restart the same incomplete frame.
+
+The writer chooses scalefactors and Huffman codes for the supplied integers.
+Edits may ask for a different attenuation on every line within one MP3
+scalefactor band, or for more bits than a granule or frame can hold. In
+those cases the writer adjusts quantized spectral values directly until
+they fit. If coarsening would erase every bin, it retains lower-frequency
+lines that fit the remaining budget. It writes independent-channel frames with no bit reservoir. A
+valid MP3 can still decode above full scale. Monitor volume is separate.
+
+On success outlet 6 sends done followed by the path, total frames,
+number of fitted channel-granules, clamped input values, window corrections,
+native rate, channels and bitrate. Each affected channel and granule counts
+separately. On file or queue failure it sends error. The through outlets
+carry the requested clamped fields before file-specific fitting and window
+correction. The saved file can sound different when those counters rise.
+
+Holding individual bands with MC
+
+Patch an MC signal into inlet 6 of mp3pack~ or mp3decode~. In mp3decode~ bytes
+the mask goes into inlet 2. Open Band_holds in either field object's help
+patch and draw the upper or lower position for each of the 32 bands.
+
+1 holds that band's values from the last complete output frame. 0 follows the
+current input. Each band latches independently when its gate changes at a
+frame boundary. A gate already high before playback captures the first complete
+frame. The threshold is 0.5. Nonfinite gates and missing lanes follow live.
+A pulse must overlap a frame boundary to be sampled. At 48 kHz, each frame
+lasts 24 ms. The held pattern includes all 18 spectral lines per subband in
+each granule.
+
+A single signal controls all bands. A 32-channel MC mask applies the same
+pattern to both audio channels. For independent stereo, use a 64-channel mask
+with left on lanes 1–32 and right on 33–64. A short bank of 2–32 lanes starts
+at the lowest band on each side. A bank of 33–63 lanes uses the independent
+stereo layout. For example, send setvalue 4 1 to [mc.sig~ 0 @chans 32] for a
+hold on the fourth band, then setvalue 4 0 to let it follow again.
+
+In field mode a band holds its spectral integers and attenuation. Global gain
+and window type continue to follow their inlets. mp3pack~ sends the resulting
+fields to its outlets and its MP3 writer. In byte mode the mask holds each
+band's reconstructed spectral values after dequantization and joint stereo.
+The current packet supplies the synthesis window. A split stereo mask can
+hold different bands even when the MP3 input is mono. If the byte cable goes
+idle, only gated bands continue to supply spectral energy.
+
+Whole-frame freeze takes priority. On freeze 0 the current MC mask takes
+effect at the next frame boundary. Bands still gated keep their last audible
+frame, and released bands return to the current source.
+
+Choosing what a held band remembers
+
+Send holdmode coeff (the default) or holdmode level to mp3pack~ or field-mode
+mp3decode~. Mode changes are sampled on full-frame boundaries. In coeff mode
+the band's captured integers and attenuation follow the current global gain.
+In level mode the band retains its captured spectral amplitude as the other
+bands change. The fields on the through outlets and in the writer reflect
+the selected mode. Each granule and stereo side retains its own captured gain.
+
+MP3 has one global gain per granule and channel. Level mode chooses a shared
+output gain, offsets the per-line attenuation, and adjusts the integer only
+when the attenuation cannot represent the difference. An extremely quiet
+line can round to zero. Its captured source survives and becomes available
+again when the gain range permits it. Window changes and overlap still affect
+the waveform. Whole-frame freeze keeps the complete frame in either mode.
+mp3decode~ bytes already holds dequantized spectral levels in both modes.
+
+Clocking and scanning a frame memory
+
+mp3clock~ runs without an input. Its outlets are row (0–17), full-frame pulse
+and granule pulse. An optional full-frame sync signal can align it to another
+source. With an encoder, use mp3encode~ outlets 7 and 8 for row and frame
+sync. A pulse occupies one host sample. Below the native rate a host sample
+can span several codec ticks and carries the last row reached.
+
+mp3frames~ accepts an optional capacity of 1–1024 complete frames, default 64.
+Its first five inlets and outlets carry the usual MP3 fields. Inlet 6 accepts
+an MC read age in frames. Inlet 7 accepts optional full-frame sync and takes
+precedence over granule sync for alignment. Outlets 6 and 7 carry row and
+full-frame sync. Connect field outlets 1–5 to mp3pack~ or mp3decode~.
+
+Age 0 follows the live inlet. Age 1 recalls the newest complete input frame.
+Greater ages reach further back. Values round to the nearest frame and stop
+at the oldest available one. Negative or nonfinite values select live input.
+With no history, every lane follows live. One lane addresses all bands, up
+to 32 lanes share a pattern between sides, and 33–64 lanes independently
+address the left and right banks. Each band samples its age at frame start.
+
+Capture is on by default. record 0 parks the write position so a phasor or
+an MC sequence can scan fixed material. record 1 resumes capture. clear
+discards history at the next frame boundary. DSP setup starts with an empty
+memory. Capture stores incoming fields, so revisiting a frame does not feed
+it back into memory. Reading the same age across a channel recalls that
+frame's window. When ages differ, the channel uses the live window and
+combines source levels under a shared gain using the same bounds as level hold.
+
+Playing the short windows
+
+mp3short~ has four signal inlets. Connect effective attenuation, window type,
+the 0–17 row signal, then the MC trims in dB. Send its MC attenuation output
+to inlet 2 of the packer or field decoder. A 3-lane trim cable sets the early,
+middle and late short windows on both sides. A 6-lane cable sets left then
+right independently. A scalar broadcasts and missing trims default to 0 dB.
+For example, applyvalues 0 -12 -24 to mc.sig~ 0 @chans 3 gives a falling
+three-window pattern. Drive the window-type input with 2 to hear all three.
+
+The trims round to the nearest attenuation step (about 1.505 dB). A positive
+trim can reverse attenuation up to the 0-step floor. Long, start and stop
+blocks pass their incoming attenuation. Mixed blocks preserve the lowest
+two or four long subbands. Trims act on the effective fields. The writer
+chooses a legal MP3 representation of the result.
+
+Auditioning a recording
+
+Send monitor 1 to mp3pack~ to play the exact frames it writes at outlet 7.
+Send monitor 0 to turn this off. Recording starts with write. The writer
+hands the same bytes to the file and the monitor decoder. Playback waits
+one native frame after a packet becomes available, in addition to capture
+and worker scheduling time. A late enable primes the synthesis filters from
+recent file packets. Leave DSP running after stop to hear the queued ending.
+Use a limiter on this audio outlet as you would on the live field decoder.
+The packer records the spectral data upstream of that limiter.
+
+While recording, outlet 6 reports fit when the number of fitted channel-
+granules changes, up to ten updates per second. Send stats at any time for
+fit <fitted channel-granules> <frames written> <window corrections>
+<monitor frames dropped>. Counts reset when a new take starts. The file
+writer and monitor have separate queues. A monitor drop affects the audition
+only. A file-writing failure is reported separately. The done message keeps
+its existing format.
+
+
+Freezing
+
+Send freeze 1 or freeze 0 to the left inlet of mp3pack~, mp3decode~ or
+mp3decode~ bytes. The change takes effect at a frame boundary. Freeze holds
+the most recently completed frame available for playback, including both
+granules for MPEG-1 or one for MPEG-2/2.5. If enabled before the first frame,
+it captures the first complete one. The filter bank and overlap keep running.
+Unfreezing resumes current input. In byte mode, incoming frames continue
+updating the reservoir during the hold. A held frame also plays through idle
+input. On release into idle, the decoder lets its filters decay for up to
+1,152 codec samples before returning to silence. At 48 kHz that is up to 24 ms.
+
+Freeze the packer to put the hold in the file and on its signal outlets.
+Freeze a downstream decoder to hold only that monitor while the packer keeps
+recording live fields. The file starts with fresh decoder history, so its
+first overlap can differ from monitoring that began earlier.
+
+Encoding and playback
+
+The default constant bitrate is 128 kb/s for MPEG-1, 64 kb/s at 16–24 kHz,
+and 32 kb/s at 8–12 kHz. An integer argument requests another legal bitrate,
+for example [mp3encode~ 64]. The byte cable can emit one byte per codec sample,
+so the maximum requested bitrate must fit that link. Stereo encoding uses
+independent left and right channels. The encoder disables the bit reservoir so
+each generated frame can be unpacked independently.
+
+The encoder uses a bounded worker queue for real-time playback. Send “stats”
+to see its count of queue drops, underruns and encoding errors since DSP start.
+A faster-than-real-time render can overrun the queue. For capturing a complete
+phrase, run silence through the encoder after the ending before stopping DSP to
+let buffered frames emerge. The stream is continuous and has no gapless file
+length tag.
+
+The help patches attenuate and clip the monitor signal before the speakers.
+Holding bands from a quiet passage while the encoder changes global gain can
+produce peaks far above full scale. In a custom audition patch, put a limiter
+or mc.clip~ after mp3decode~ and before the DAC. The MP3 writer records the
+spectral edits upstream of this monitor protection. Different players can
+render extreme levels and rapidly alternating mixed windows differently.
+
+Source
+
+source/mp3unpack.c and source/field_file.c read and stream MC fields from disk.
+source/mp3encode.c, source/mp3decode.c and source/mp3pack.c implement the MSP
+and MC interfaces. source/pack.c chooses scalefactors, codes spectra and builds
+frames. source/pack_writer.c queues and writes frames away from the audio thread.
+source/encoder.c runs LAME on a worker thread. source/layer3.c exposes the
+Huffman-decoded values and runs inverse quantization, antialiasing, IMDCT,
+overlap and synthesis. source/mp3frames.c, mp3short.c and mp3clock.c implement the new field tools.
+source/build-macos.sh rebuilds all seven bundles with the Max SDK and the
+bundled patched LAME source. Run sh source/build-macos.sh /path/to/max-sdk-base.
+An optional second argument supplies a prebuilt universal patched LAME dylib. See licenses/Third-party.txt for library versions and sources.

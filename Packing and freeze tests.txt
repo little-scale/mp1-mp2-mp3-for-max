@@ -1,0 +1,277 @@
+MP3 packing and freeze tests
+20 November 2026 • Max 9.1.4 • Apple silicon • FFmpeg 9.0.1
+
+Downsampling
+
+In a silent Max patch at 48,000 Hz, the encoder, field decoder, byte decoder,
+packer, clock and frame memory changed rate with DSP running. Frame headers
+in the encoder byte cable and saved files switched to 24,000 Hz at 8 kb/s,
+then 12,000 Hz. Each open recording ended at its own sample rate. Resending
+its effective divisor kept the same take open. FFmpeg and mpg123 decoded the
+recordings. A 431 Hz input stayed at 431 Hz through the switches.
+
+An imported 48 kHz stereo file produced identical 24 kHz MP3s when conversion
+happened in the reader or after the MC edits in the packer. Setting both
+objects to half rate also produced 24 kHz. The 8 kHz conversion kept the
+source duration to whole MP3 frames. Automated tests cover ten combinations
+of sample rate, divisor, bitrate and channel count, including tone rejection
+above the new Nyquist limit and replay of a converted file. Run
+source/tests/check-downsample.py with Python 3, a C compiler and FFmpeg.
+
+
+File import and live bitrate changes
+
+mp3unpack~ / mp3pack~ were exercised in Max with a 48 kHz host and a 24 kHz
+poly~ voice. Imported 44.1 and 48 kHz sources kept their original frame counts
+and sample rates in both hosts. A mono 22.05 kHz input stayed mono. Unedited
+Max exports matched the offline packer byte for byte. A mono coefficient
+polarity inversion yielded the exact samplewise inverse under FFmpeg.
+
+Tests covered all nine native rates, CBR, VBR, ordinary stereo and mono,
+mid/side stereo, an intensity-stereo fixture, the bit reservoir, CRC-bearing
+frames, long, short and mixed blocks, ID3, APE, Xing/Info and VBRI. An 8 kHz
+mixed-block fixture retained the original FFmpeg-decoded samples on repack.
+A failed read during playback preserved the original take. Rewind/replay,
+early stop and end-of-file auto-stop were exercised. In the help patch the
+tested band held across consecutive frames while all unselected bands
+followed the source. Release rejoined the live data. Full-frame freeze held
+both sides and both granules.
+
+Frame header inspection confirmed live changes through 32, 64, 192 and
+320 kb/s within single MPEG-1 files. A request of 75 selected 80 kb/s.
+The independent FFmpeg and mpg123 decoders both played those takes. In Max,
+the field decoder's in-memory bitrate audition was compared against FFmpeg's
+decode of a simultaneous mp3pack~ recording. Aligned checks in the 32, 64,
+192 and 256 kb/s passages had relative RMS error below -125 dB. Bitrate 0
+gave a sample-identical return to direct synthesis. Tests of the bundled
+LAME extension changed through every supported bitrate in mono and stereo
+at all nine native rates and checked every frame header and decoded length.
+
+source/tests/check-bitrate.py exercises rate changes in the packaged encoder.
+source/tests/check-file-unpack.py compares file-import fields and packed files
+against FFmpeg and checks invalid-file handling. The existing packer, monitor
+and hold regression suites are in the same folder.
+
+Instrument update • Apple M5 • Max 9.1.4 on macOS
+
+mp3encode~ 1.2, mp3decode~ 1.5, mp3pack~ 1.2, mp3frames~ 1.0,
+mp3clock~ 1.0 and mp3short~ 1.0
+
+Performance
+
+Max's DSP meter reported a median of 4% while the example recorded a stereo
+48 kHz, 64 kb/s MP3. It also reported 4% with packed-frame audition enabled.
+Readings ranged from 4% to 5% in both intervals. With the instrument muted
+the meter read 0%. Each figure uses 20 readings at 200 ms intervals. The
+patch included oscillators, frame memory, separate stereo read positions,
+short-window trims, a field decoder, MP3 recording and a stereo audio capture.
+The MP3 encoder was outside this oscillator-driven signal path. These figures
+describe one instance on this Mac. The DSP meter has integer resolution.
+
+In a separate compiled benchmark, stereo frame memory used 0.22% of one core
+at 48 kHz and 0.37% at 96 kHz. Short-window trims used 0.42% and 0.72%.
+These are thread CPU times as a percentage of the audio duration, using
+64-sample vectors and the median of five trials. They exclude the Max host.
+The default 64-frame history and its write slot use about 1.15 MiB.
+
+A sparse stereo packing workload at 48 kHz used 0.11% of one core on the
+worker, rising to 0.15% with packed-frame decoding. A dense 64 kb/s workload
+used 0.91% and 0.95% respectively. These worker figures cover in-memory
+packing and optional decoding and exclude disk I/O. The 96 kHz monitor skips
+silent filter work and evaluates only the contributing phase of its integer
+upsampling filter. Live recording and the audition queue operate independently.
+
+Musical controls and output
+
+A separate 48 kHz Max run recorded 244 stereo frames. All 976 channel-
+granules required fitting and the writer corrected 22 window requests.
+The live status outlet reported fitting during the take. After aligning
+the audition outlet and mpg123's independent decode of the saved bytes,
+the RMS difference was −122.5 dB relative to the reference. The monitor
+reported zero dropped frames. A fresh Max run with the archived binaries
+returned −122.4 dB and zero drops. The field decoder with its own gate mask and a second
+decoder reading the packer outlets returned identical samples throughout.
+
+The encoder, standalone clock and memory returned identical row, frame and
+granule timing. The capture included a three-frame delay on the right side,
+independently parked left and right read positions, and a held band under
+an 18-step live gain increase. The held band acquired 18 more attenuation
+steps while the live band followed the new gain. A separate field test
+changes gain across the representable attenuation range and checks that the
+original capture returns after the extreme setting and a whole-frame freeze.
+
+Independent short-window trims produced 0/8/16 attenuation steps on the left
+and 16/8/0 on the right in pure short blocks. The first band on both sides
+passed its original attenuation in mixed blocks. A second recording enabled
+the packed monitor partway through a take. Its left output matched mpg123 at
+−132.4 dB RMS from two frames after audible playback through the file ending.
+
+source/tests/check-packed-monitor.py verifies the exact-byte audition against
+FFmpeg, including enabling it after four packets and ending a take during
+short windows. It checks mono and stereo at 15 host rates from 1 to 384 kHz,
+covering all nine native rates and 44,117.25 Hz. At converted rates it sends
+the independently decoded PCM through the reference rate filter for sample
+comparison. All 60 combinations passed a −100 dB RMS threshold. This script
+also checks memory wraparound, parked recording, clearing, invalid ages, both
+granule counts and per-channel windows. Run it with the path to max-sdk-base.
+The existing 216-case strict file check and 34 byte-decoder hold cases passed.
+
+Minimum stream bitrate
+
+At each of the nine native rates the bundled encoder produced 40 real
+frames at the lowest supported bitrate in mono and again in stereo.
+The packer repacked the fields at that bitrate and the byte decoder
+reconstructed audio. All 36 encoded and repacked test streams passed
+FFmpeg's strict decoder. There were zero reported encoder drops.
+In Max, a 48 kHz parent ran a poly~ voice with down 2. Inside it, both
+encoder and packer used 8 kb/s at 24 kHz. The mono take contained 104
+complete 24-byte frames. Both live decode paths produced audio.
+
+Extended tests with mp3decode~ 1.4
+
+The updated decoder keeps the outgoing overlap for each band's own window.
+It also lets the synthesis filters decay when the last held band, or a
+whole-frame freeze, is released after the byte stream has stopped.
+
+Live recording in Max
+
+A 48 kHz patch varied a 64-lane hold mask 85 times while mp3encode~ processed
+sweeping tones and transient noise. The packer switched between three active
+stereo takes. In a parallel patch, the MC control cable was changed from
+32 to 64 lanes and back while DSP was running. The writer closed each take
+when its channel count changed. The three resulting files were mono, stereo
+and mono. FFmpeg's strict decoder read all 3,981 frames in the six files.
+The frame counts agreed with all six completion messages.
+
+The final run captured 78.096 seconds. A decoder receiving the mask directly
+and one receiving mp3pack~'s field outlets produced identical left and right
+samples throughout. The three main takes required spectral fitting. The first
+also spanned live DSP graph rebuilds and had 10 window corrections. After
+alignment and two startup frames, the second and third files decoded with
+mpg123 differed from the live monitor by −100.0 and −82.8 dB RMS respectively.
+The first take did not maintain a single alignment through the graph edits.
+
+Release into a silent byte cable
+
+In a separate Max patch, mono and stereo packets stopped while selected bands
+remained held. With 1.3, releasing the last band immediately cut the output to
+zero. With 1.4, the measured filter tail ended 1,056 samples after release,
+or 22 ms at 48 kHz. Compared with FFmpeg decoding independently constructed
+silent continuation frames, the residual over the tail was −131.2 dB for the
+mono source and −134.2 dB for stereo. The two outputs returned to exact zero.
+An unfrozen single packet still produced exactly one frame of playback.
+An ordinary joint-stereo VBR stream matched FFmpeg to −126.4 dB.
+
+Window changes and offline players
+
+A callback test compared the field and byte inlets against spectra assembled
+from the expected source frame for each band. It covered 34 mono and stereo
+cases, 91 frames each, at all nine native MP3 rates from 8 to 48 kHz. Cases
+included independent left/right gates, whole-frame freeze and varying Max
+signal vector sizes. No file needed fitting. At 8 kHz the packer uses pure
+short windows for mixed requests.
+
+On long/start/short/stop sequences, both paths matched FFmpeg and mpg123
+to at least 127 dB below the reference signal. On sequences that switched
+directly between pure short and mixed windows, both paths still matched
+mpg123 1.33.7 to within −127 dB RMS. On those same MP3s FFmpeg 9.0.1 differed
+from Max by −43.8 to −37.2 dB. A separate 48 kHz impulse test isolated the
+difference to the lowest two subbands of the mixed window among the bands
+tested. A live Max playback of a stereo mixed-window file matched mpg123 to
+−128.4 dB. Apple afconvert also produced a different waveform for the mixed
+mono file (−34.7 dB relative to mpg123 after aligning a 529-sample offset).
+All figures compare decoded samples. No listening judgement was made.
+
+Levels in a custom patch
+
+The held coefficients and their attenuation can outlast the gain that
+originally accompanied them. In the dense stress test, the raw live monitor
+peaked above 500,000, where 1.0 is full scale. The same packed file's peak
+was about 505,521 through mpg123, 60.7 through FFmpeg's float decoder, and
+1.0 through Apple afconvert. A playable MP3 can exceed full scale by a very
+large margin. The help patches clip their speaker monitors. These stress takes
+are excluded from the listening examples.
+
+Repeatable checks
+
+The new source/tests/check-decoder-hold.py uses the Max SDK, a C compiler,
+mpg123 and FFmpeg to compare a moving band mask, a whole-frame or per-band
+release into idle, and subsequent silence at every native rate. Pass the
+path to max-sdk-base as its argument. The existing 216-case frame validity
+test also passed again. The encoder, packer and both decoder modes ran together
+at 12 host rates from 1 to 384 kHz, including 44,117.25 Hz, with the expected
+frame counts, sync counts and zero reported encoder drops.
+
+Earlier tests with mp3decode~ 1.3
+
+Per-band MC hold
+
+mp3pack~ 1.1 and mp3decode~ 1.3 were tested together in Max with a 64-lane
+hold cable. Four oscillator-driven lanes were held, released and recaptured
+independently across the stereo channels. Every one of the 82,368 sampled
+coefficient and attenuation values checked on the packer outlets matched the
+expected frame for that band. An independently gated decoder and a decoder
+monitoring the packer outputs gave identical audio samples.
+
+Individual band holds.mp3 is the resulting 256-frame stereo recording. The
+writer reported zero fitted granules and zero window corrections. After
+aligning playback and excluding the first two frames for filter history, the
+FFmpeg decode matched the Max monitor to −122.3 dB RMS relative to the signal.
+The 32-band help control was also exercised inside Max.
+
+In byte mode, reference MP3s were constructed independently from the frame
+selected for each band. Mono and stereo sources both ran through independent
+left and right masks, including an interval with no incoming bytes. The Max
+results matched FFmpeg's decode of those reference files to −129.0 and
+−129.4 dB respectively. Releasing the last held band into idle gave silence.
+
+The field-level regression covers one- and two-granule frames, disconnected
+gates, 1/3/32/33/47/64-lane gates, nonfinite gates, and partial holds across
+a whole-frame freeze and release. It is in source/tests/check-band-hold.c.
+
+Whole-frame freeze and packing
+
+Spectral freeze.mp3 is the direct stereo file from the release test. A band mask
+reversed coefficient signs and muted every third lane of mp3encode~. The patch
+held the current spectral frame about 1.4 seconds into the take and returned
+to the moving source about four seconds later. No audio decoder participated
+in writing the file. A separate monitor decoded the fields for comparison.
+
+In Max at 48 kHz, both the edited stereo encoder and a four-oscillator mono
+source wrote 324 frames each. After aligning the signals and excluding the
+initial two frames of filter history, FFmpeg's playback differed from the
+live monitor by −127.4 dB RMS relative to the stereo signal and −126.7 dB
+relative to the oscillator signal. No spectral fitting was needed on either
+take. The 110 successive frame comparisons in the middle of each hold were
+byte-identical. The live fields resumed changing after release.
+
+An independent mp3decode~ receiving freeze messages produced the same samples
+as a decoder monitoring mp3pack~'s frozen field outlets. An mp3decode~ bytes
+played an ordinary joint-stereo VBR stream with a bit reservoir. Freezing
+preserved a sounding spectral frame after the input went idle. In a second
+test, releasing while the stream was still arriving restored the current
+decoded output sample for sample after filter overlap settled. The single-
+frame byte-input regression also passed against FFmpeg.
+
+Two Max poly~ patches reported 96,000 and 192,000 Hz at their DSP inputs.
+Both recorded 128 complete frames at 48,000 Hz. Native callback tests ran
+the encoder, packer, field decoder and byte decoder together at 12 host rates
+from 1,000 to 384,000 Hz. These included 37,800, 44,117.25 and 50,000 Hz.
+Frame and sync counts matched the expected elapsed time. Independent FFmpeg
+decodes of the packed fields and original bytes matched on the test tones.
+
+The limits test exercised 216 combinations of native rate, channel count and
+legal recorder bitrate. FFmpeg decoded all 5,616 frames with strict error
+detection. Inputs included NaN, both infinities, oversized coefficients, deep
+per-line attenuation and incompatible window requests. The test also checked
+legal window transitions. Run source/tests/check-limits.sh to repeat the
+frame checks with a C compiler and FFmpeg.
+
+A live Max stress take drove all stereo lanes beyond their limits, requested
+an out-of-range gain and window, and sent a sync edge every two host samples.
+The packer completed a valid 32 kb/s recording and reported the interventions.
+Frame validity and audio peak level are independent. The packaged example
+uses ordinary listening levels.
+
+Both examples in mp3pack~.maxhelp wrote decodable files. Intel and Apple
+silicon slices are included. Live host testing used Apple silicon.
