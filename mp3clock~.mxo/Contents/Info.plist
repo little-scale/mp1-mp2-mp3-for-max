@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<plist version="1.0"><dict>
-<key>CFBundleExecutable</key><string>mp3clock~</string>
-<key>CFBundleIdentifier</key><string>audio.subband.mp3clock</string>
-<key>CFBundleName</key><string>mp3clock~</string><key>CFBundlePackageType</key><string>iLaX</string>
-<key>CFBundleVersion</key><string>2</string><key>CFBundleShortVersionString</key><string>1.1</string>
-</dict></plist>
