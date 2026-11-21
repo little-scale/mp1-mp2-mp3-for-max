@@ -471,6 +471,6 @@ frames. source/pack_writer.c queues and writes frames away from the audio thread
 source/encoder.c runs LAME on a worker thread. source/layer3.c exposes the
 Huffman-decoded values and runs inverse quantization, antialiasing, IMDCT,
 overlap and synthesis. source/mp3frames.c, mp3short.c and mp3clock.c implement the new field tools.
-source/build-macos.sh rebuilds all seven bundles with the Max SDK and the
+source/build-macos.sh rebuilds all three layers, including these seven MP3 bundles with the Max SDK and the
 bundled patched LAME source. Run sh source/build-macos.sh /path/to/max-sdk-base.
 An optional second argument supplies a prebuilt universal patched LAME dylib. See licenses/Third-party.txt for library versions and sources.

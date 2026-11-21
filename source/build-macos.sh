@@ -2,7 +2,8 @@
 # sh build-macos.sh /absolute/path/to/max-sdk-base [patched-universal-libmp3lame.0.dylib]
 set -eu
 cd "$(dirname "$0")"
-support="${1:?Specify max-sdk-base}/c74support"
+sdk="${1:?Specify the absolute path to max-sdk-base}"
+support="$sdk/c74support"
 lame_lib="${2:-}"
 if [ -z "$lame_lib" ] || ! nm -gU "$lame_lib" 2>/dev/null | grep -q ' _lame_set_frame_bitrate$'; then
     scratch=$(mktemp -d)
@@ -50,3 +51,5 @@ PLIST
     mv "$bundle/Contents/MacOS/$name~.new" "$bundle/Contents/MacOS/$name~"
     codesign --force --sign - "$bundle"
 done
+
+sh layers12/build-macos.sh "$sdk"

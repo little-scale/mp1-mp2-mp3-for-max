@@ -1,25 +1,42 @@
-# MP3 Encode & Decode for Max
+# MP1, MP2 and MP3 for Max
 
-Seven Max externals for making sound in the MP3 compressed domain. Drive a decoder with oscillators, freeze individual spectral bands, or edit the bands of an existing MP3 and write them straight to a new file. Each audio channel exposes 32 bands on a Max MC cable.
+Twenty Max/MSP externals for making music with MPEG audio frames. Drive a decoder with MC oscillators, freeze individual bands, or open an existing MPEG audio file and patch its compressed data straight into a new recording.
 
-## Try it in Max
+**[Download the macOS universal release](https://github.com/little-scale/mp1-mp2-mp3-for-max/releases/latest/download/mp1-mp2-mp3-for-max-macos-universal.zip)**
 
-The macOS release includes all seven compiled externals for Apple silicon and Intel, their help patches, and audio examples. [Download the latest macOS ZIP](https://github.com/little-scale/mp3-encode-decode-for-max/releases/latest/download/mp3-encode-decode-for-max-macos-universal.zip).
+Unzip **MPEG Audio for Max** and keep the externals and help patches together. Open a help patch directly, or add the folder to Max’s search path. The download contains Apple silicon and Intel binaries. Compiled objects are distributed through GitHub Releases.
 
-Unzip the download, open the `MP3 Patch` folder, and double-click `mp3encode~.maxhelp` to try the encoder and decoder. Keep the `.mxo` bundles beside the help patches, or add their folder to Max’s search path.
+## Three patches to try
 
-- **Edit an existing MP3.** Turn on DSP, click `read` to choose the source, click `write` to choose a new file, then click `start`. The patch lets you mute and freeze bands during playback. [Open the file-editing help patch](mp3unpack~.maxhelp).
-- **Build an instrument.** Connect the first five outlets of `mp3encode~` to `mp3decode~` for live synthesis or to `mp3pack~` for recording. Insert MC processing on the coefficient cable, or supply coefficients from your own oscillators. [Open the encoder and decoder example](mp3encode~.maxhelp).
-- **Try 8 kb/s.** In a 48 kHz patch, send `downsample 2` to the objects sharing the live fields. This selects a 24 kHz codec rate. Send `bitrate 8` to the encoder and packer, then `write` to the packer.
+- **Build a sound from oscillators.** Open `mp1decode~.maxhelp`, turn on the speaker and click `spread 9 73`. Each oscillator writes words into a different subband. The same design can record an MP1 in `mp1pack~.maxhelp`.
+- **Edit a file without a PCM round trip.** Open `mp2unpack~.maxhelp`, turn on DSP, click `read`, then `write`, then `start`. Mute or freeze bands while the file plays. The patch finishes the take at the end of the source. The MP1 and MP3 unpackers have their own examples.
+- **Hear what a bitrate change does.** Open `mp3encode~.maxhelp`, or either of the new encoder help patches. Send `bitrate` or `kbps` followed by a number to the encoder or packer during a take. Open a decoder’s help patch to audition a bitrate directly from fields.
 
-`mp3frames~` stores frames for per-band recall, `mp3clock~` supplies row and frame timing, and `mp3short~` adjusts the three short windows. [Object guide and message reference](Read%20me.txt).
+## The objects
+
+| Role | Layer I | Layer II | Layer III |
+| --- | --- | --- | --- |
+| Analyze audio into MC fields and output encoded bytes | `mp1encode~` | `mp2encode~` | `mp3encode~` |
+| Synthesize audio from fields or encoded bytes | `mp1decode~` | `mp2decode~` | `mp3decode~` |
+| Fit edited fields into frames and record a file | `mp1pack~` | `mp2pack~` | `mp3pack~` |
+| Read compressed fields from a file | `mp1unpack~` | `mp2unpack~` | `mp3unpack~` |
+| Recall different frames for different bands | `mp1frames~` | `mp2frames~` | `mp3frames~` |
+| Generate or follow codec timing | `mp1clock~` | `mp2clock~` | `mp3clock~` |
+| Layer-specific instrument or editing tool | `mp1bands~` | | `mp3short~` |
+
+Each layer exposes 32 subbands per audio channel. Layer I carries 12 subband words per band per frame. Layer II carries 36 and lets you edit three consecutive scalefactor groups. Layer III exposes 18 hybrid spectral coefficients per subband per granule and includes short-window controls. Use matching objects within each layer. For the five-cable Layer I interface, create `mp1decode~ mc`. The original four-inlet `mp1decode~` and `mp1bands~` instruments are included.
+
+The object guides describe the cable layouts, freeze modes, bitrate ranges and sample-rate handling. [Layer I and II guide](Layer%20I%20and%20II%20guide.md) · [Layer III guide](Read%20me.txt)
 
 ## Build and test
 
-This command rebuilds all seven macOS bundles using the Max SDK.
+From the repository root on macOS, use the Cycling ’74 Max SDK to build all 20 universal bundles.
 
 ```sh
-sh source/build-macos.sh /path/to/max-sdk-base
+sh source/build-macos.sh /absolute/path/to/max-sdk-base
+python3 source/layers12/tests/check_layers.py /absolute/path/to/max-sdk-base
 ```
 
-The repository includes the source code, regression tests, audio examples, and third-party notices. [Tests](source/tests) · [Verification results](Packing%20and%20freeze%20tests.txt) · [Third-party notices](licenses/Third-party.txt).
+The Layer I and II checks use FFmpeg and mpg123. They exercise every supported bitrate and sample-rate combination, compare independent decoders, and check frame fitting, file transport, downsampling and band holds. The MP3 tests include packed-monitor, file editing, dynamic bitrate and frame-memory regressions. [Layer III tests](source/tests) · [Layer III verification results](Packing%20and%20freeze%20tests.txt) · [Third-party notices](licenses/Third-party.txt)
+
+The original seven-object MP3 release remains available in the same repository. [Download v1.0.0](https://github.com/little-scale/mp1-mp2-mp3-for-max/releases/tag/v1.0.0)

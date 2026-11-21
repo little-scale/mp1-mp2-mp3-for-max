@@ -7,12 +7,18 @@ typedef struct {
     int hz, first, seen_edge;
     uint64_t sample, last_edge, next_adjust;
 } CodecClock;
-static const int codec_rates[] = {48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000};
+static const int codec_rates[] = {
+    48000, 44100, 32000, 24000, 22050, 16000,
+#ifndef MPEG_AUDIO_LAYERS_12
+    12000, 11025, 8000,
+#endif
+};
+enum { CODEC_RATE_COUNT = sizeof(codec_rates) / sizeof(codec_rates[0]) };
 /* Stay in the native rate family. For example 44.1 / 2 and / 4 give
    22.05 and 11.025 kHz, while a 48 kHz clock also permits / 3 and / 6. */
 static inline int codec_divide(int native, int factor) {
     int result = native;
-    for (int i = 0; i < 9; i++) {
+    for (int i = 0; i < CODEC_RATE_COUNT; i++) {
         int hz = codec_rates[i];
         if (hz <= native && native % hz == 0 && native / hz <= factor)
             result = hz;
@@ -28,19 +34,19 @@ static inline int codec_clock_setup(CodecClock *c, double host) {
     *c = (CodecClock){.host = host, .first = 1};
     if (!isfinite(host) || host < 1)
         return 0;
-    for (int i = 0; i < 9; i++) {
+    for (int i = 0; i < CODEC_RATE_COUNT; i++) {
         double multiple = round(host / codec_rates[i]);
         if (multiple >= 1 && fabs(host - codec_rates[i] * multiple) < 1.e-7) {
             c->hz = codec_rates[i];
             return 1;
         }
     }
-    for (int i = 0; i < 9; i++)
+    for (int i = 0; i < CODEC_RATE_COUNT; i++)
         if (host >= codec_rates[i]) {
             c->hz = codec_rates[i];
             return 1;
         }
-    c->hz = 8000;
+    c->hz = codec_rates[CODEC_RATE_COUNT - 1];
     return 1;
 }
 static inline int codec_clock_setup_divided(CodecClock *c, double host, int factor) {
