@@ -187,6 +187,12 @@ def main():
                      SOURCE/"tests/check_fields.c",SOURCE/"subband.c",SOURCE/"filter.c","-o",executable)
                 call(executable)
             print("Clamping, independent stereo holds, whole-frame freeze and seven host rates passed")
+            executable = tmp / "bands2"
+            call("cc", "-std=c11", "-O2", "-DMPEG_AUDIO_LAYERS_12", "-DLAYER=2",
+                 "-I", sdk/"max-includes", "-I", sdk/"msp-includes",
+                 SOURCE/"tests/check_bands2.c", SOURCE/"subband.c", SOURCE/"filter.c", "-o", executable)
+            call(executable)
+            print("MP2 band routing, three word modes, decoder equivalence and host clocks passed")
 
 
 if __name__ == "__main__":

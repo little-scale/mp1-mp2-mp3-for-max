@@ -115,6 +115,18 @@ static inline void playback_frame(Playback *p, const BandFrame *f) {
             dst->pcm[j][1] = dst->pcm[j][0];
     p->tail = 16;
 }
+/* Convert one host sample after all native ticks for that sample have run. */
+static inline void pcm_output_finish(PcmPath *b, float pair[2]) {
+    Rate *r = &b->rate;
+    if (r->factor > 1) {
+        rate_push(r, pair[0], pair[1]);
+        for (int c = 0; c < 2; c++)
+            pair[c] = rate_interpolate(r, c);
+    } else if (r->factor < 0) {
+        for (int c = 0; c < 2; c++)
+            pair[c] = fractional_read(&b->fractional, c, -r->clock.phase / r->clock.host);
+    }
+}
 static inline void playback_sample(Playback *p, float pair[2]) {
     pair[0] = pair[1] = 0;
     if (!p->hz)
@@ -156,13 +168,6 @@ static inline void playback_sample(Playback *p, float pair[2]) {
         if (r->factor < 0)
             fractional_push(&b->fractional, pair[0], pair[1]);
     }
-    if (r->factor > 1) {
-        rate_push(r, pair[0], pair[1]);
-        for (int c = 0; c < 2; c++)
-            pair[c] = rate_interpolate(r, c);
-    }
-    if (r->factor < 0)
-        for (int c = 0; c < 2; c++)
-            pair[c] = fractional_read(&b->fractional, c, -r->clock.phase / r->clock.host);
+    pcm_output_finish(b, pair);
 }
 #endif

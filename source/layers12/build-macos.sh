@@ -6,7 +6,6 @@ support="${1:?Supply the path to max-sdk-base}/c74support"
 destination="${2:-../..}"
 for layer in 1 2; do
     for role in encode decode pack unpack frames clock bands; do
-        if [ "$role" = bands ] && [ "$layer" = 2 ]; then continue; fi
         name="mp${layer}${role}~"
         bundle="$destination/$name.mxo"
         mkdir -p "$bundle/Contents/MacOS"
@@ -25,7 +24,8 @@ PLIST
             encode|decode|pack) set -- "max_$role.c" subband.c filter.c convert.c worker.c
                 if [ "$role" = decode ] && [ "$layer" = 1 ]; then set -- "$@" layer1.c; fi ;;
             unpack) set -- max_unpack.c subband.c filter.c convert.c reader.c ;;
-            bands) set -- max_bands.c layer1.c ;;
+            bands) if [ "$layer" = 1 ]; then set -- max_bands.c layer1.c
+                   else set -- max_bands2.c subband.c filter.c; fi ;;
             *) set -- "max_$role.c" subband.c ;;
         esac
         xcrun clang -std=c11 -O3 -DMPEG_AUDIO_LAYERS_12 -DLAYER="$layer" -Wall -Wextra -Wno-unused-parameter -Wno-cast-function-type-mismatch \

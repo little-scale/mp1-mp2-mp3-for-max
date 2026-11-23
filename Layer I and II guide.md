@@ -70,3 +70,15 @@ The encoder uses a polyphase analysis bank and an energy-based bit allocator. Th
 The regression script covers 312 bitrate/rate/channel combinations and compares synthesis against FFmpeg and mpg123. With the Max SDK supplied it also checks stereo holds, input clamping and native-to-host synthesis from 8 to 192 kHz. In Max, unedited MP1 and MP2 file passes reproduced the source’s decoded audio sample-for-sample, and recordings switched from 160 to 96 to 192 kb/s during a take. [Regression tests](source/layers12/tests)
 
 The original `mp1decode~` and `mp1decode~ raw` retain the serial scanning interface. `mp1bands~` retains the earlier MC-addressed instrument. Open `MP1 serial scanning.maxpat` or `mp1bands~.maxhelp` for those patches. Their legacy raw mode accepts unsigned codewords.
+
+## Addressing Layer II bands with oscillators
+
+Open `mp2bands~.maxhelp` to move MC oscillators between 32 Layer II synthesis bands. The four signal inlets take sample values, destination addresses, allocation classes and scalefactor indices. The three outlets carry mono audio, the current scan column (0–31) and a one-sample pulse at the start of each frame.
+
+- Feed `mc.cycle~` into inlet 1 for normalized samples from −1 to +1. A mono signal feeds all 32 source lanes. A shorter MC bank uses only its connected lanes.
+- Leave inlet 2 open for lane 1 to address band 0, lane 2 to address band 1, and so on. A mono address rotates the bank. An MC address gives each source lane an absolute destination from 0 to 31. If two lanes hit the same band, the higher-numbered lane wins. Unaddressed bands receive a zero sample.
+- Inlets 3 and 4 always follow the destination band. Allocation class 0 mutes it and classes 1–17 select Layer II quantizers. The default class is 7 and the default scale index is 18. A mono control broadcasts to all destinations.
+- Data and addresses are sampled every 32 codec samples. Allocation latches at the start of the 36-slot frame (1,152 codec samples). Scalefactors latch at slots 1, 13 and 25. `downsample 2` and the creation argument `@downsample 2` use the suite’s divided codec clock.
+- Use `mp2bands~ signed` for centered integer words from an encoder. For unsigned individual quantizer digits, use `mp2bands~ raw`. For example, class 2 accepts signed words −2…+2 or raw digits 0…4. `mp2decode~ mc` also accepts the encoder’s slot marker and format when exact stream synchronisation is needed.
+
+In Max at 48 kHz, two oscillators swapping between bands 0 and 1 produced the same samples as routing them to the corresponding MC lanes on `mp2decode~ mc`. In that comparison the field decoder’s output arrived 2,272 samples later because it buffers complete frames. The addressable instrument synthesizes each 32-sample slot as its words arrive.

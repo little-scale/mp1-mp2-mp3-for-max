@@ -1,6 +1,4 @@
-#include "ext.h"
-#include "ext_obex.h"
-#include "z_dsp.h"
+#include "band_input.h"
 #include "layer1.h"
 #include <stdio.h>
 #include <math.h>
@@ -10,48 +8,22 @@
 typedef struct {
     t_pxobject object;
     Layer1 decoder;
-    short connected[4];
+    Bus bus;
     int raw;
-    long channels[4], offset[4];
     double words[32], allocation[32], scale[32];
     uint32_t valid;
 } DecoderExternal;
 
 static t_class *decoder_class;
 
-/* A mono field broadcasts. Short multichannel fields have explicit defaults. */
-static double lane_value(const DecoderExternal *x, double **ins, int port, int lane, long sample,
-                         double fallback) {
-    if (!x->connected[port])
-        return fallback;
-    if (x->channels[port] == 1)
-        lane = 0;
-    if (lane >= x->channels[port])
-        return fallback;
-    return ins[x->offset[port] + lane][sample];
-}
-
 static void capture_slot(DecoderExternal *x, double **ins, long sample) {
     if (x->decoder.slot == 0) {
         for (int band = 0; band < 32; ++band) {
-            x->allocation[band] = lane_value(x, ins, 2, band, sample, 7);
-            x->scale[band] = lane_value(x, ins, 3, band, sample, 18);
+            x->allocation[band] = lane(&x->bus, ins, 2, 0, band, sample, 7);
+            x->scale[band] = lane(&x->bus, ins, 3, 0, band, sample, 18);
         }
     }
-    x->valid = 0;
-    if (!x->connected[0])
-        return;
-    const int lanes = x->channels[0] == 1 || x->channels[0] >= 32 ? 32 : (int)x->channels[0];
-    for (int lane = 0; lane < lanes; ++lane) {
-        double address = lane_value(x, ins, 1, lane, sample, -1);
-        int band = lane;
-        if (isfinite(address) && address >= 0) {
-            int index = address >= 31 ? 31 : (int)address;
-            band = x->channels[1] == 1 ? (lane + index) % 32 : index;
-        }
-        x->words[band] = lane_value(x, ins, 0, lane, sample, 0);
-        x->valid |= UINT32_C(1) << band;
-    }
+    x->valid = route_band_words(&x->bus, ins, (int)sample, x->words);
 }
 
 static void perform64(DecoderExternal *x, t_object *chain, double **ins, long nin, double **outs,
@@ -70,15 +42,7 @@ static void perform64(DecoderExternal *x, t_object *chain, double **ins, long ni
 
 static void dsp64(DecoderExternal *x, t_object *chain, short *connected, double rate,
                   long max_vector, long flags) {
-    for (int i = 0; i < 4; ++i)
-        x->connected[i] = connected[i];
-    long offset = 0;
-    for (long i = 0; i < 4; ++i) {
-        long channels = (long)object_method(chain, gensym("getnuminputchannels"), x, i);
-        x->channels[i] = channels > 0 ? channels : 1;
-        x->offset[i] = offset;
-        offset += x->channels[i];
-    }
+    bus_setup(&x->bus, x, chain, connected, 4);
     layer1_reset(&x->decoder);
     object_method(chain, gensym("dsp_add64"), x, perform64, 0, NULL);
 }
